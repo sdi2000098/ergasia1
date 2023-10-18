@@ -1,8 +1,8 @@
 #include <iostream>
-#include <fstream>
 #include "voters.h"
 //Voters.h will be used to interact with the database
 #include <string.h>
+#include <error.h>
 
 #define ERROR -1
 #define STRING_LENGTH 100
@@ -25,6 +25,7 @@ void ShowPrompt( void ){
 
 }
 
+
 void Operate(void) {
     char * Input,**tokens;
     if ( (Input = (char*)malloc(sizeof(char)*STRING_LENGTH)) == NULL){         //Holds the user's input
@@ -37,9 +38,10 @@ void Operate(void) {
     }
     while (1)
     {
-        cin.getline(Input,STRING_LENGTH);
-        
+        fgets(Input, STRING_LENGTH,stdin);
         int i = 0;
+        if (Input[strlen(Input)-1] == '\n')
+            Input[strlen(Input)-1] ='\0';
         tokens[i] = strtok(Input," ");
         while (tokens[i] != NULL)
         {
@@ -129,16 +131,17 @@ void Operate(void) {
                 cout << "Wrong number of arguments in input\n";
                 continue;
             }
-            ifstream file;
-            file.open(tokens[1]);
-            if (file.is_open()){
+            FILE* ptr;
+            ptr = fopen(tokens[1], "r");
+            if (ptr != NULL){
                 char * s1;
                 if  (( s1= (char*)malloc(STRING_LENGTH*sizeof(char)) ) == NULL){
                     cout << "Could not allocate memory\n";
                     return;
                 }
-                while(file.good()){
-                    file >> s1;
+                while(fgets(s1, STRING_LENGTH, ptr)){
+                    if (s1[strlen(s1)-1] == '\n')
+                        s1[strlen(s1)-1]='\0';
                     bool flag = false;
                     for (int i = 0; i < (int)strlen(s1); i++) {
                         if(!isdigit(s1[i])){
@@ -153,7 +156,7 @@ void Operate(void) {
                         cout << s1 << " does not exist\n";
                 }
                 free(s1);
-                file.close();
+                fclose(ptr);
             }
             else
                 cout << tokens[1]<< " could not be opened\n";
@@ -292,17 +295,16 @@ int main(int argc, char **argv){
         if (Initialize(atoi(KeysPerBucket), INITIAL_SIZE) == ERROR)
             return ERROR;
     }
-    ifstream file;
-    file.open(InputFile);
+    FILE* fp;
+    fp = fopen(InputFile,"r");
     free(InitialSize);
-    free(InputFile);
     free(KeysPerBucket);
-    char * s1 ;
+    char * s1,**tokens ;
     if ((s1= (char*)malloc(STRING_LENGTH*sizeof(char))) == NULL ){
         cout << "Could not allocate memory\n";
         return ERROR;
     }
-    if (file.is_open() ){
+    if (fp != NULL){
         int zip,pin;
         char * name, * surname;
         if ( ( name = (char*) malloc (sizeof(char)*STRING_LENGTH) ) == NULL){
@@ -313,26 +315,41 @@ int main(int argc, char **argv){
             cout << "Could not allocate memory\n";
             return ERROR;
         }
-        int i = 0 ;
-        while( file.good()){
-            i++;
-            file >> s1;
-            pin = atoi(s1);
-            file >> name;
-            file >> surname;
-            file >> s1;
-            zip = atoi(s1);
-            if (file.good())        //Insert only if 4 tokens were read and file didnt reach EOF
-                CreateVoter(pin,surname,name,zip);
+        int i;
+        if ( ( tokens =(char **) malloc(6*sizeof(char *))) == NULL){          //Break the input to maximum 6 tokens, more than 6 will not correspond to a valid operation
+            cout << "Could not allocate memory\n";
+            return ERROR;
+        }
+        while( fgets(s1, STRING_LENGTH, fp) ){
+            i = 0;
+            tokens[i] = strtok(s1," ");
+            while (tokens[i] != NULL)
+            {
+                i++;
+                if (i == 5){
+                    cout << "Too Many Arguments while reading from "<< InputFile << "\n";
+                    return ERROR;
+                }
+                tokens[i] = strtok(NULL," ");
+            }
+            
+            pin = atoi(tokens[0]);
+            strcpy(name,tokens[1]);
+            strcpy(surname,tokens[2]);
+            zip = atoi(tokens[3]);
+            CreateVoter(pin,name,surname,zip);
         }
         free(name);
         free(surname);
-        file.close();
+        fclose(fp);
     }
     else{
+        printf("Error %d \n", errno);
         cout << "Could not open file " << InputFile << "\n";
         return ERROR;
     }
+    free(tokens);
+    free(InputFile);
     free(s1);
     ShowPrompt();
     Operate();
